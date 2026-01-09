@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Интерактивная формула</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+</head>
+<body>
+    <div class="container">
+        <h1>Интерактивная математическая формула</h1>
+        <div id="formula-container">
+            <!-- Теперь: \sum\limits_{i=1}^{n} — пределы НАД и ПОД знаком суммы -->
+            <span class="formula-static">\(\sum\limits_{i=1}^{n}\)</span>
+            <span class="formula-part" data-latex="x_i">\(x_i\)</span>
+            <span class="formula-static">\(=\)</span>
+            <span class="formula-part" data-latex="S">\(S\)</span>
+        </div>
+        <div id="editor" class="hidden">
+            <label for="edit-input">Изменить значение переменной:</label>
+            <input type="text" id="edit-input" placeholder="Введите LaTeX (например, y_k)">
+            <button id="save-btn">Сохранить</button>
+            <button id="cancel-btn">Отмена</button>
+        </div>
+    </div>
+    <script src="script.js"></script>
+</body>
+</html>
