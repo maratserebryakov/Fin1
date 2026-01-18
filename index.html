@@ -1,0 +1,594 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>P (финальная цена)</title>
+
+  <!-- MathJax -->
+  <script>
+    window.MathJax = {
+      tex: { inlineMath: [['\\(', '\\)']], displayMath: [['\\[','\\]']] },
+      options: { skipHtmlTags: ['script','noscript','style','textarea','pre','code'] }
+    };
+  </script>
+  <script defer src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"></script>
+
+  <!-- Export libs -->
+  <script defer src="https://cdn.jsdelivr.net/npm/html2pdf.js@0.10.1/dist/html2pdf.bundle.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/xlsx@0.19.3/dist/xlsx.full.min.js"></script>
+
+  <style>
+    :root{
+      --grid: rgba(0,0,0,.08);
+      --text: #111;
+      --head: #e6b8af;
+      --cyan:#00e9f0;
+      --grey:#a6a6a6;
+      --active:#1f6fff;
+      --activeCell:#bff7ff;
+      --pPulse1:#fff2a8;
+      --pPulse2:#bff7ff;
+      --pPulse3:#c9ffbf;
+    }
+
+    html,body{height:100%; margin:0; font-family: Arial, Helvetica, sans-serif; color:var(--text); background:#fff;}
+
+    /* Сделали окно фрейма чуть шире */
+    .frame{
+      width: min(1260px, 100vw);
+      margin: 12px auto;
+      padding: 0 10px;
+    }
+    .scroll{
+      overflow:auto;
+      -webkit-overflow-scrolling: touch;
+      border-radius: 10px;
+    }
+
+    /* Панель масштабирования */
+    .toolbar{
+      width: min(1260px, 100vw);
+      margin: 0 auto 10px;
+      padding: 6px 8px;
+      display:flex;
+      align-items:center;
+      gap:10px;
+      justify-content:space-between;
+      flex-wrap:wrap;
+    }
+    .toolLeft, .toolRight{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+    .zoomBox{
+      display:flex;
+      align-items:center;
+      gap:8px;
+      border:1px solid rgba(0,0,0,.15);
+      border-radius:10px;
+      padding:6px 10px;
+      background:#fff;
+    }
+    .zoomBox label{ font-size:12px; }
+    .zoomBox input[type="range"]{ width: 160px; }
+    .zoomVal{
+      min-width: 52px;
+      text-align:right;
+      font-size:12px;
+      font-variant-numeric: tabular-nums;
+    }
+    .btn{
+      font-size:12px; padding:6px 10px;
+      border:1px solid rgba(0,0,0,.2);
+      background:#fff; border-radius:8px; cursor:pointer;
+    }
+    .btn:hover{ background:#f4f4f4; }
+
+    .sheetWrap{ width:1120px; transform-origin: top left; }
+    .sheet{
+      width:1120px; height:720px; margin:0 auto; position:relative;
+      background:
+        repeating-linear-gradient(0deg, transparent 0, transparent 23px, var(--grid) 24px),
+        repeating-linear-gradient(90deg, transparent 0, transparent 59px, var(--grid) 60px);
+      overflow:hidden;
+      transform-origin: top left;
+    }
+
+    /* Формула сверху */
+    .formulaTop{
+      position:absolute; left:140px; top:22px;
+      display:flex; align-items:center; gap:8px; font-size:14px;
+    }
+    .formulaTop .P{
+      font-style: italic; font-size:16px; cursor:pointer; user-select:none;
+      padding:2px 3px; border-radius:4px;
+    }
+    .formulaTop .P.active{ color: var(--active) !important; }
+
+    .mjrow{ display:flex; align-items:center; white-space:nowrap; user-select:none; }
+    .part{ cursor:pointer; padding:2px 3px; border-radius:4px; }
+    .part.active{ color: var(--active) !important; }
+    .part.active .mjx-container{ color: var(--active) !important; }
+    .part.active .mjx-container *{ color: var(--active) !important; }
+
+    /* Таблица:
+       - 1-я колонка (P) прежняя
+       - все остальные колонки ~в 2 раза меньше, как просили */
+    .tbl{
+      position:absolute; left:70px; top:78px;
+      display:grid;
+      grid-template-columns:
+        110px   /* P (оставили) */
+        100px   /* Специалист (было 200) */
+        40px    /* T (было 80) */
+        55px    /* R (было 110) */
+        55px    /* O% */
+        55px    /* N% */
+        55px    /* Kpm */
+        55px    /* Kc */
+        55px    /* Ku */
+      ;
+      grid-auto-rows: 34px;
+    }
+    .tbl .cell.head{ height: 52px; }
+
+    .cell{
+      border:1px solid rgba(0,0,0,.10);
+      background: rgba(255,255,255,.0);
+      display:flex; align-items:center;
+      padding: 0 6px;
+      font-size:12px; line-height:1.05;
+    }
+    .head{
+      background: var(--head);
+      font-weight:600;
+      font-size:10px;
+      justify-content:center;
+      text-align:center;
+      padding:4px 4px;
+      line-height:1.1;
+      white-space:normal;
+      word-break:break-word;
+    }
+    .head.cyan{ background: var(--cyan); }
+
+    .tGrey{ background: var(--grey); color:#000; justify-content:flex-end; padding-right:6px; }
+    .num{ justify-content:flex-end; padding-right:6px; font-size:12px; }
+    .name{ justify-content:flex-start; }
+
+    .pValue{
+      background: var(--cyan);
+      font-size:14px;
+      font-weight:700;
+      justify-content:center;
+      letter-spacing:.2px;
+      padding:0 6px;
+    }
+
+    .cell input{
+      width:100%;
+      border:none; outline:none;
+      background:transparent;
+      font: inherit;
+      padding:0; margin:0;
+      color:inherit;
+      min-width:0;
+    }
+    .cell.name input{ text-align:left; }
+    .cell.tGrey input, .cell.num input{ text-align:right; }
+    .cell.pValue input{ text-align:center; font-weight:700; }
+
+    .cell.activeCell{
+      background: var(--activeCell) !important;
+      box-shadow: inset 0 0 0 2px rgba(31,111,255,.25);
+    }
+
+    .withSub{
+      flex-direction:column;
+      align-items:stretch;
+      justify-content:center;
+      padding: 3px 6px 2px;
+      gap:2px;
+    }
+    .withSub .sub{
+      width:100%;
+      font-size:10px;
+      line-height:1.0;
+      opacity:.85;
+      text-align:right;
+      padding-right:2px;
+      color:#1a1a1a;
+      user-select:none;
+    }
+
+    .note{
+      position:absolute;
+      left:70px;
+      bottom:18px;
+      font-size:10px;
+      color:#333;
+    }
+
+    @keyframes pPulse {
+      0%   { background: var(--cyan); }
+      15%  { background: var(--pPulse1); }
+      30%  { background: var(--cyan); }
+      45%  { background: var(--pPulse2); }
+      60%  { background: var(--cyan); }
+      75%  { background: var(--pPulse3); }
+      100% { background: var(--cyan); }
+    }
+    .pValue.pulsing{ animation: pPulse 900ms ease-in-out 1; }
+  </style>
+</head>
+
+<body>
+  <div class="frame">
+    <div class="toolbar">
+      <div class="toolLeft">
+        <div class="zoomBox">
+          <label for="zoom">Масштаб</label>
+          <button class="btn" id="zoomOut" type="button">−</button>
+          <input id="zoom" type="range" min="0.5" max="1.5" step="0.01" value="1">
+          <button class="btn" id="zoomIn" type="button">+</button>
+          <div class="zoomVal" id="zoomVal">100%</div>
+          <button class="btn" id="fitWidth" type="button">По ширине</button>
+          <button class="btn" id="zoomReset" type="button">100%</button>
+        </div>
+      </div>
+
+      <div class="toolRight">
+        <button class="btn" id="exportPdf" type="button">Export PDF</button>
+        <button class="btn" id="exportXlsx" type="button">Export Excel</button>
+      </div>
+    </div>
+
+    <div class="scroll">
+      <div class="sheetWrap" id="sheetWrap">
+        <div class="sheet" id="sheet">
+
+          <!-- Формула сверху -->
+          <div class="formulaTop" aria-label="formula">
+            <div class="P" id="PPart">P</div>
+            <div>=</div>
+            <div class="mjrow" id="mjrow">
+              <span class="part" data-target="SUM">
+                \( \left[\sum_{i=1}^{n}(T_i \times R_i)\right] \)
+              </span>
+              <span class="part" data-target="O">
+                \( \times (1+O\%) \)
+              </span>
+              <span class="part" data-target="N">
+                \( \times (1+N\%) \)
+              </span>
+              <span class="part" data-target="KPM">
+                \( \times K_{Profit\,Margin} \)
+              </span>
+              <span class="part" data-target="KC">
+                \( \times K_{Complexity} \)
+              </span>
+              <span class="part" data-target="KU">
+                \( \times K_{Urgency} \)
+              </span>
+            </div>
+          </div>
+
+          <!-- Таблица -->
+          <div class="tbl" id="tbl">
+            <!-- Header row -->
+            <div class="cell head cyan">P</div>
+            <div class="cell head">Трудозатраты<br>(специалист)</div>
+            <div class="cell head">(T)</div>
+            <div class="cell head">(R)</div>
+            <div class="cell head">(O%)</div>
+            <div class="cell head">(N%)</div>
+            <div class="cell head">K_маржа</div>
+            <div class="cell head">K_сложн.</div>
+            <div class="cell head">K_срочн.</div>
+
+            <!-- Пустая строка -->
+            <div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div>
+            <div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div>
+
+            <!-- Row 1 -->
+            <div class="cell"></div>
+            <div class="cell name"><input class="NAME" type="text" value="Инженер"></div>
+            <div class="cell tGrey"><input class="T" type="number" step="1" value="15"></div>
+            <div class="cell num"><input class="R" type="number" step="1" value="1500"></div>
+            <div class="cell num"></div>
+            <div class="cell num"></div>
+            <div class="cell num"></div>
+            <div class="cell num"></div>
+            <div class="cell num"></div>
+
+            <!-- Row 2 -->
+            <div class="cell pValue" id="PCell"><input id="P" type="text" value="261170" readonly></div>
+            <div class="cell name"><input class="NAME" type="text" value="Сантехник"></div>
+            <div class="cell tGrey"><input class="T" type="number" step="1" value="15"></div>
+            <div class="cell num"><input class="R" type="number" step="1" value="1000"></div>
+
+            <div class="cell num withSub" id="OCell">
+              <input id="O" type="number" step="0.01" value="6">
+              <div class="sub" id="Oabs">—</div>
+            </div>
+
+            <div class="cell num"><input id="N" type="number" step="0.01" value="6"></div>
+            <div class="cell num"><input id="Kpm" type="number" step="0.01" value="1.45"></div>
+            <div class="cell num"><input id="Kc" type="number" step="0.01" value="1.25"></div>
+            <div class="cell num"><input id="Ku" type="number" step="0.01" value="1.25"></div>
+
+            <!-- Row 3 -->
+            <div class="cell"></div>
+            <div class="cell name"><input class="NAME" type="text" value="Пекарь"></div>
+            <div class="cell tGrey"><input class="T" type="number" step="1" value="5"></div>
+            <div class="cell num"><input class="R" type="number" step="1" value="750"></div>
+            <div class="cell num"></div>
+            <div class="cell num"></div>
+            <div class="cell num"></div>
+            <div class="cell num"></div>
+            <div class="cell num"></div>
+
+            <!-- Rows 4..10 -->
+            ${""}
+          </div>
+
+          <div class="note">Тут до 10 значений</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // --- Добавление оставшихся строк (4..10) программно, чтобы не раздувать HTML ---
+    // (это не влияет на внешний вид, просто удобнее поддерживать)
+    (function addRows(){
+      const tbl = document.getElementById("tbl");
+      const make = (cls, html="") => {
+        const d = document.createElement("div");
+        d.className = "cell " + (cls||"");
+        d.innerHTML = html;
+        return d;
+      };
+      for(let r=4;r<=10;r++){
+        tbl.appendChild(make("", ""));
+        tbl.appendChild(make("name", `<input class="NAME" type="text" value="">`));
+        tbl.appendChild(make("tGrey", `<input class="T" type="number" step="1" value="">`));
+        tbl.appendChild(make("num", `<input class="R" type="number" step="1" value="">`));
+        tbl.appendChild(make("num",""));
+        tbl.appendChild(make("num",""));
+        tbl.appendChild(make("num",""));
+        tbl.appendChild(make("num",""));
+        tbl.appendChild(make("num",""));
+      }
+    })();
+
+    const q  = (s)=>document.querySelector(s);
+    const qa = (s)=>Array.from(document.querySelectorAll(s));
+
+    // --------- scaling ----------
+    const SHEET_W = 1120;
+    const zoomEl = q("#zoom");
+    const zoomValEl = q("#zoomVal");
+    const sheetWrap = q("#sheetWrap");
+
+    function clamp(n, a, b){ return Math.max(a, Math.min(b, n)); }
+    function setZoom(z){
+      const zc = clamp(z, 0.5, 1.5);
+      zoomEl.value = String(zc);
+      zoomValEl.textContent = `${Math.round(zc*100)}%`;
+      sheetWrap.style.transform = `scale(${zc})`;
+      sheetWrap.style.width = `${SHEET_W}px`;
+      sheetWrap.style.height = `${720}px`;
+    }
+    function fitWidth(){
+      const scroll = document.querySelector(".scroll");
+      const avail = scroll.clientWidth;
+      const z = avail / SHEET_W;
+      setZoom(clamp(z, 0.5, 1.5));
+    }
+    q("#zoomIn").addEventListener("click", ()=> setZoom(parseFloat(zoomEl.value)+0.05));
+    q("#zoomOut").addEventListener("click", ()=> setZoom(parseFloat(zoomEl.value)-0.05));
+    q("#zoomReset").addEventListener("click", ()=> setZoom(1));
+    q("#fitWidth").addEventListener("click", ()=> fitWidth());
+    zoomEl.addEventListener("input", ()=> setZoom(parseFloat(zoomEl.value)));
+    window.addEventListener("load", ()=> { setZoom(1); });
+
+    // --------- math helpers ----------
+    function numVal(el){
+      const v = parseFloat(String(el?.value ?? "").replace(",", "."));
+      return Number.isFinite(v) ? v : 0;
+    }
+    function fmtInt(n){
+      if(!Number.isFinite(n)) return "—";
+      return new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 0 }).format(Math.round(n));
+    }
+    function calcBaseTR(){
+      const Ts = qa("input.T");
+      const Rs = qa("input.R");
+      let sum = 0;
+      for(let i=0;i<Math.min(Ts.length, Rs.length);i++){
+        const T = numVal(Ts[i]);
+        const R = numVal(Rs[i]);
+        if(T > 0 && R > 0) sum += T * R;
+      }
+      return sum;
+    }
+
+    function recalc(){
+      const base = calcBaseTR();
+      const O_pct = numVal(q("#O"));
+      const N_pct = numVal(q("#N"));
+      const Kpm = numVal(q("#Kpm")) || 1;
+      const Kc  = numVal(q("#Kc"))  || 1;
+      const Ku  = numVal(q("#Ku"))  || 1;
+
+      const O_abs = base * (O_pct / 100);
+      q("#Oabs").textContent = base > 0 ? fmtInt(O_abs) : "—";
+
+      const P = base * (1 + O_pct/100) * (1 + N_pct/100) * Kpm * Kc * Ku;
+      q("#P").value = String(Math.round(P));
+    }
+
+    // --------- highlighting ----------
+    function clearActive(){
+      qa(".part").forEach(p=>p.classList.remove("active"));
+      q("#PPart").classList.remove("active");
+      qa(".cell").forEach(c=>c.classList.remove("activeCell"));
+    }
+    function highlightCellByInput(el){
+      const cell = el && el.closest(".cell");
+      if(cell) cell.classList.add("activeCell");
+    }
+    function pulsePCell(){
+      const cell = q("#PCell");
+      if(!cell) return;
+      cell.classList.remove("pulsing");
+      void cell.offsetWidth;
+      cell.classList.add("pulsing");
+      cell.addEventListener("animationend", () => cell.classList.remove("pulsing"), { once:true });
+    }
+    function setActive(target){
+      clearActive();
+      if(target === "P"){
+        q("#PPart").classList.add("active");
+        pulsePCell();
+        highlightCellByInput(q("#P"));
+        return;
+      }
+      qa(`.part[data-target="${target}"]`).forEach(p=>p.classList.add("active"));
+      if(target === "SUM"){
+        qa("input.T, input.R").forEach(inp => highlightCellByInput(inp));
+        return;
+      }
+      if(target === "O"){  highlightCellByInput(q("#O")); return; }
+      if(target === "N"){  highlightCellByInput(q("#N")); return; }
+      if(target === "KPM"){highlightCellByInput(q("#Kpm"));return; }
+      if(target === "KC"){ highlightCellByInput(q("#Kc")); return; }
+      if(target === "KU"){ highlightCellByInput(q("#Ku")); return; }
+    }
+
+    q("#mjrow").addEventListener("click", (e)=>{
+      const part = e.target.closest(".part");
+      if(!part) return;
+      setActive(part.dataset.target);
+    });
+    q("#PPart").addEventListener("click", ()=> setActive("P"));
+
+    const focusMap = new Map([
+      ["O","O"], ["N","N"], ["Kpm","KPM"], ["Kc","KC"], ["Ku","KU"], ["P","P"]
+    ]);
+
+    qa("input").forEach(inp=>{
+      inp.addEventListener("focus", ()=>{
+        if(inp.classList.contains("T") || inp.classList.contains("R")){
+          setActive("SUM");
+          return;
+        }
+        const t = focusMap.get(inp.id);
+        if(t) setActive(t);
+      });
+      inp.addEventListener("input", recalc);
+    });
+
+    recalc();
+    setActive("SUM");
+
+    // --------- EXPORT PDF ----------
+    q("#exportPdf").addEventListener("click", async ()=>{
+      if(window.MathJax?.typesetPromise){
+        try { await MathJax.typesetPromise(); } catch(e){}
+      }
+      const prev = parseFloat(zoomEl.value);
+      setZoom(1);
+
+      const element = q("#sheet");
+      const opt = {
+        margin:       [8, 8, 8, 8],
+        filename:     "P_final_price.pdf",
+        image:        { type: "jpeg", quality: 0.98 },
+        html2canvas:  { scale: 2, useCORS: true },
+        jsPDF:        { unit: "mm", format: "a4", orientation: "landscape" }
+      };
+      // @ts-ignore
+      await html2pdf().set(opt).from(element).save();
+      setZoom(prev);
+    });
+
+    // --------- EXPORT EXCEL ----------
+q("#exportXlsx").addEventListener("click", () => {
+
+  const headers = [
+    "Специалист",
+    "T (часы)",
+    "R (ставка)",
+    "T × R",
+    "O% (накладные)",
+    "O (₽)",
+    "N% (налоги)",
+    "K_маржа",
+    "K_сложность",
+    "K_срочность",
+    "P (финальная цена)"
+  ];
+
+  const names = qa("input.NAME");
+  const Ts    = qa("input.T");
+  const Rs    = qa("input.R");
+
+  const O_pct = numVal(q("#O"));
+  const N_pct = numVal(q("#N"));
+  const Kpm   = numVal(q("#Kpm")) || 1;
+  const Kc    = numVal(q("#Kc"))  || 1;
+  const Ku    = numVal(q("#Ku"))  || 1;
+
+  const base  = calcBaseTR();
+  const O_abs = base * (O_pct / 100);
+  const P     = numVal(q("#P"));
+
+  const aoa = [headers];
+
+  for (let i = 0; i < names.length; i++) {
+    const name = names[i].value.trim();
+    const T = numVal(Ts[i]);
+    const R = numVal(Rs[i]);
+
+    if (!name && !T && !R) continue; // пропускаем пустые строки
+
+    aoa.push([
+      name,
+      T || "",
+      R || "",
+      (T && R) ? T * R : "",
+      O_pct,
+      Math.round(O_abs),
+      N_pct,
+      Kpm,
+      Kc,
+      Ku,
+      Math.round(P)
+    ]);
+  }
+
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+
+  ws["!cols"] = [
+    { wch: 20 }, // специалист
+    { wch: 10 },
+    { wch: 12 },
+    { wch: 12 },
+    { wch: 14 },
+    { wch: 14 },
+    { wch: 12 },
+    { wch: 12 },
+    { wch: 14 },
+    { wch: 14 },
+    { wch: 18 }
+  ];
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Расчет P");
+
+  XLSX.writeFile(wb, "P_final_price.xlsx");
+});
+
+  </script>
+</body>
+</html>
