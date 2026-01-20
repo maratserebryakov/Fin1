@@ -103,7 +103,7 @@
     .part.active .mjx-container *{ color: var(--active) !important; }
     .bracket{ padding:2px 2px; user-select:none; }
 
-    /* P первая колонка, остальные в 2 раза уже */
+    /* первый столбец P, остальные, кроме Специалист в 2 раза меньше */
     .tbl{
       position:absolute; left:70px; top:78px;
       display:grid;
@@ -194,8 +194,8 @@
 
     .note{
       position:absolute;
-      left:120px;
-      bottom:18px;
+      left:280px;
+      bottom:108px;
       font-size:10px;
       color:#333;
     }
@@ -365,7 +365,8 @@
             <div class="cell num"></div><div class="cell num"></div><div class="cell num"></div><div class="cell num"></div><div class="cell num"></div>
           </div>
 
-          <div class="note">Тут до 10 значений</div>
+          <div class="note">Тут до 10 значений
+            <br> SUM включает и T/R по специалистам, и O (накладные %),потому что O считается от суммы произведений</div>
         </div>
       </div>
     </div>
